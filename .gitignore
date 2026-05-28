@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual env
+venv/
+.env/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Outputs
+outputs/
+
+# Dataset lớn
+data/raw/
+data/processed/
+
+# VSCode
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
