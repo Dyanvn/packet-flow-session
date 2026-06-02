@@ -33,7 +33,7 @@ packets = load_packets(
 
     "data/sample/Friday-WorkingHours.pcap",
 
-    limit=10000
+    limit=100000
 )
 
 
@@ -90,3 +90,5 @@ for flow_key, flow_packets in flows.items():
     print(
         f"Attack Probability: {probability:.4f}"
     )
+print(features)
+print("Attack Probability:", probability)

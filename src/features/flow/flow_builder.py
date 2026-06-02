@@ -37,16 +37,26 @@ def build_flows(packets):
         else:
             continue
 
-        flow_key = (
-
+        forward_tuple = (
             packet[IP].src,
             packet[IP].dst,
-
             sport,
             dport,
-
             protocol
         )
+
+        reverse_tuple = (
+            packet[IP].dst,
+            packet[IP].src,
+            dport,
+            sport,
+            protocol
+        )
+
+        if forward_tuple <= reverse_tuple:
+            flow_key = forward_tuple
+        else:
+            flow_key = reverse_tuple
 
         flows[flow_key].append(packet)
 
