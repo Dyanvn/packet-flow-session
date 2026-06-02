@@ -8,3 +8,4 @@ joblib
 jupyter
 scapy
 pyarrow
+psutil

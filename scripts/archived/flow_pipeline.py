@@ -33,7 +33,8 @@ packets = load_packets(
 
     "data/sample/Friday-WorkingHours.pcap",
 
-    limit=100000
+    limit=500000
+    
 )
 
 

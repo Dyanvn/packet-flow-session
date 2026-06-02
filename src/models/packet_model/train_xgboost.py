@@ -13,12 +13,26 @@ from sklearn.metrics import (
 )
 from sklearn.model_selection import train_test_split
 
-from src.preprocessing.feature_selection import selected_features
 
+DATASET_PATH = "data/processed/packet_model_dataset.csv"
+OUTPUT_MODEL_PATH = "outputs/models/xgboost_packet_model.pkl"
+OUTPUT_METRICS_PATH = "outputs/metrics/packet_training_metrics.csv"
 
-DATASET_PATH = "data/processed/flow_model_dataset.csv"
-OUTPUT_MODEL_PATH = "outputs/models/xgboost_flow_model.pkl"
-OUTPUT_METRICS_PATH = "outputs/metrics/flow_training_metrics.csv"
+SELECTED_FEATURES = [
+    "Timestamp",
+    "Src Port",
+    "Dst Port",
+    "Packet Length",
+    "SYN Flag",
+    "ACK Flag",
+    "FIN Flag",
+    "RST Flag",
+    "PSH Flag",
+    "URG Flag",
+    "Protocol Code",
+]
+
+PROTOCOL_MAP = {"TCP": 1, "UDP": 0}
 
 
 def ensure_directories():
@@ -27,14 +41,22 @@ def ensure_directories():
 
 
 def load_dataset(path=DATASET_PATH):
-    print(f"[INFO] Loading dataset from {path}...")
+    print(f"[INFO] Loading packet dataset from {path}...")
     if not os.path.exists(path):
         raise FileNotFoundError(
-            f"Dataset not found. Run src/pipeline/build_flow_dataset.py first or create {path}."
+            f"Packet dataset not found. Run src/pipeline/build_packet_dataset.py first or create {path}."
         )
     df = pd.read_csv(path)
-    X = df[selected_features]
-    y = df["Label"]
+    df = df.dropna(subset=["Label"])
+    if "Protocol" in df.columns:
+        df["Protocol Code"] = df["Protocol"].map(PROTOCOL_MAP).fillna(2).astype(int)
+    else:
+        df["Protocol Code"] = 2
+    missing = [feat for feat in SELECTED_FEATURES if feat not in df.columns]
+    if missing:
+        raise ValueError(f"Missing packet features: {missing}")
+    X = df[SELECTED_FEATURES]
+    y = df["Label"].astype(int)
     return X, y
 
 
@@ -55,9 +77,9 @@ def build_model(scale_pos_weight):
 def evaluate(y_true, y_pred, y_prob):
     return {
         "accuracy": accuracy_score(y_true, y_pred),
-        "precision": precision_score(y_true, y_pred),
-        "recall": recall_score(y_true, y_pred),
-        "f1_score": f1_score(y_true, y_pred),
+        "precision": precision_score(y_true, y_pred, zero_division=0),
+        "recall": recall_score(y_true, y_pred, zero_division=0),
+        "f1_score": f1_score(y_true, y_pred, zero_division=0),
         "roc_auc": roc_auc_score(y_true, y_prob),
     }
 
@@ -65,13 +87,17 @@ def evaluate(y_true, y_pred, y_prob):
 def save_metrics(metrics):
     df = pd.DataFrame([metrics])
     df.to_csv(OUTPUT_METRICS_PATH, index=False)
-    print(f"[INFO] Training metrics saved to {OUTPUT_METRICS_PATH}")
+    print(f"[INFO] Packet training metrics saved to {OUTPUT_METRICS_PATH}")
 
 
 def main():
     ensure_directories()
-
     X, y = load_dataset()
+    if len(y.unique()) < 2:
+        raise ValueError(
+            "Packet dataset must contain at least two label classes for training."
+        )
+
     X_train, X_test, y_train, y_test = train_test_split(
         X,
         y,
@@ -86,7 +112,7 @@ def main():
 
     attack_count = y_train.sum()
     benign_count = len(y_train) - attack_count
-    scale_pos_weight = benign_count / attack_count
+    scale_pos_weight = benign_count / attack_count if attack_count > 0 else 1.0
 
     print("\n========== CLASS INFO ==========")
     print(f"Benign : {benign_count}")
@@ -94,7 +120,7 @@ def main():
     print(f"Scale Pos Weight: {scale_pos_weight:.4f}")
 
     model = build_model(scale_pos_weight)
-    print("\n[INFO] Training XGBoost model...")
+    print("\n[INFO] Training packet-level XGBoost model...")
     start_time = time.perf_counter()
     model.fit(X_train, y_train)
     training_time = time.perf_counter() - start_time
@@ -113,7 +139,7 @@ def main():
         }
     )
 
-    print("\n========== MODEL METRICS ==========")
+    print("\n========== PACKET MODEL METRICS ==========")
     print(f"Accuracy : {metrics['accuracy']:.6f}")
     print(f"Precision: {metrics['precision']:.6f}")
     print(f"Recall   : {metrics['recall']:.6f}")
@@ -121,8 +147,7 @@ def main():
     print(f"ROC-AUC  : {metrics['roc_auc']:.6f}")
 
     joblib.dump(model, OUTPUT_MODEL_PATH)
-    print(f"\n[INFO] Model saved to {OUTPUT_MODEL_PATH}")
-
+    print(f"\n[INFO] Packet model saved to {OUTPUT_MODEL_PATH}")
     save_metrics(metrics)
 
 
